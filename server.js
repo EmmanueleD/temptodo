@@ -61,14 +61,32 @@ const PORT = process.env.PORT || 3000;
 // Funzione per gestire la connessione MongoDB
 const connectDB = async () => {
   try {
-    console.log('Tentativo di connessione a MongoDB...');
-    console.log('URI:', process.env.MONGODB_URI ? 'Definito' : 'Non definito');
+    console.log('🔍 Verifica configurazione MongoDB...');
     
+    // Verifica variabili d'ambiente
+    const envVariables = {
+      MONGODB_URI: process.env.MONGODB_URI ? '✅ Definito' : '❌ Non definito',
+      NODE_ENV: process.env.NODE_ENV || 'non definito',
+      JWT_SECRET: process.env.JWT_SECRET ? '✅ Definito' : '❌ Non definito',
+      EMAIL_USER: process.env.EMAIL_USER ? '✅ Definito' : '❌ Non definito',
+      EMAIL_PASSWORD: process.env.EMAIL_PASSWORD ? '✅ Definito' : '❌ Non definito'
+    };
+    
+    console.log('📊 Stato variabili d\'ambiente:', envVariables);
+    
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI non è definito nelle variabili d\'ambiente');
+    }
+
+    console.log('🔌 Tentativo di connessione a MongoDB...');
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log('📦 Connesso a MongoDB');
+    console.log('📦 Connesso con successo a MongoDB');
     return true;
   } catch (error) {
-    console.error('Errore connessione MongoDB:', error.message);
+    console.error('❌ Errore connessione MongoDB:', error.message);
+    if (error.message.includes('MONGODB_URI non è definito')) {
+      console.error('💡 Suggerimento: Configura MONGODB_URI nelle variabili d\'ambiente di Railway');
+    }
     return false;
   }
 };
