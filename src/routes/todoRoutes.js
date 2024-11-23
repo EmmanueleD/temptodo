@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const Todo = require('../models/Todo');
+const { testEmailConfiguration } = require('../services/notificationService');
 const auth = require('../middleware/auth');
+const Todo = require('../models/Todo');
 
 // Ottieni tutti i todos
 router.get('/', auth, async (req, res) => {
@@ -90,7 +91,7 @@ router.post('/test-email-config', auth, async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: 'Test configurazione fallito',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
