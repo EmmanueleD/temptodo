@@ -1,83 +1,201 @@
 {
 	"info": {
-		"name": "TempTodo Production",
+		"name": "TempTodo API",
+		"description": "API collection for TempTodo - Self-destructing todo list application",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "https://temptodo-production.up.railway.app",
+			"type": "string"
+		},
+		{
+			"key": "jwt_token",
+			"value": "your_jwt_token_here",
+			"type": "string"
+		}
+	],
 	"item": [
 		{
 			"name": "Health Check",
 			"request": {
 				"method": "GET",
-				"url": "https://temptodo-production.up.railway.app"
+				"url": "{{base_url}}"
 			}
 		},
 		{
-			"name": "Register",
-			"request": {
-				"method": "POST",
-				"url": "https://temptodo-production.up.railway.app/api/auth/register",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"if (jsonData.status === 'success') {",
+									"    pm.collectionVariables.set(\"jwt_token\", jsonData.data.token);",
+									"    pm.test(\"Token salvato nelle variabili\", function () {",
+									"        pm.expect(pm.collectionVariables.get(\"jwt_token\")).to.not.be.undefined;",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"url": "{{base_url}}/api/auth/register",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}"
+						}
 					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}"
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"if (jsonData.status === 'success') {",
+									"    pm.collectionVariables.set(\"jwt_token\", jsonData.data.token);",
+									"    pm.test(\"Token salvato nelle variabili\", function () {",
+									"        pm.expect(pm.collectionVariables.get(\"jwt_token\")).to.not.be.undefined;",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"url": "{{base_url}}/api/auth/login",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Verify Token",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/api/auth/verify",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						]
+					}
 				}
-			}
+			]
 		},
 		{
-			"name": "Login",
-			"request": {
-				"method": "POST",
-				"url": "https://temptodo-production.up.railway.app/api/auth/login",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
+			"name": "Todos",
+			"item": [
+				{
+					"name": "Get All Todos",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/api/todos",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						]
 					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}"
+				},
+				{
+					"name": "Create Todo",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);",
+									"if (jsonData.status === 'success') {",
+									"    pm.collectionVariables.set(\"todo_id\", jsonData.data._id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"url": "{{base_url}}/api/todos",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Test todo con notifica\",\n    \"notifyAt\": \"2024-11-23T20:00:00.000Z\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Update Todo",
+					"request": {
+						"method": "PATCH",
+						"url": "{{base_url}}/api/todos/{{todo_id}}",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"completed\": true\n}"
+						}
+					}
+				},
+				{
+					"name": "Delete Todo",
+					"request": {
+						"method": "DELETE",
+						"url": "{{base_url}}/api/todos/{{todo_id}}",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						]
+					}
 				}
-			}
-		},
-		{
-			"name": "Create Todo",
-			"request": {
-				"method": "POST",
-				"url": "https://temptodo-production.up.railway.app/api/todos",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "Authorization",
-						"value": "Bearer {{token}}"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"title\": \"Test todo in production\",\n    \"notifyAt\": \"2024-11-23T16:00:00.000Z\"\n}"
-				}
-			}
-		},
-		{
-			"name": "Get Todos",
-			"request": {
-				"method": "GET",
-				"url": "https://temptodo-production.up.railway.app/api/todos",
-				"header": [
-					{
-						"key": "Authorization",
-						"value": "Bearer {{token}}"
-					}
-				]
-			}
+			]
 		}
 	]
 }

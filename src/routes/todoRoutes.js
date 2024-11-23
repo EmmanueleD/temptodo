@@ -43,6 +43,35 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
+router.post('/test-notification', auth, async (req, res) => {
+  try {
+    const { sendEmail } = require('../services/notificationService');
+    
+    console.log('🔍 Test invio email...');
+    const result = await sendEmail(
+      req.user.email,
+      'Test TempTodo Notification',
+      '🔔 Questa è una email di test da TempTodo!'
+    );
+
+    if (result) {
+      res.json({
+        status: 'success',
+        message: 'Email di test inviata con successo'
+      });
+    } else {
+      throw new Error('Invio email fallito');
+    }
+  } catch (error) {
+    console.error('❌ Errore test email:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Errore nell\'invio dell\'email di test',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // Aggiorna todo
 router.patch('/:id', auth, async (req, res) => {
   try {
