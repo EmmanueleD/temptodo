@@ -119,9 +119,82 @@ const checkAndSendNotifications = async () => {
   }
 };
 
+const testEmailConfiguration = async () => {
+  try {
+    console.log('\n🔍 Test Configurazione Email:');
+    console.log('1. Verifica variabili ambiente:');
+    console.log('- EMAIL_USER:', process.env.EMAIL_USER ? '✅ Configurato' : '❌ Mancante');
+    console.log('- EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD ? '✅ Configurato' : '❌ Mancante');
+    
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+      throw new Error('Variabili email mancanti');
+    }
+
+    console.log('\n2. Configurazione Nodemailer:');
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD
+      },
+      debug: true,
+      logger: true
+    });
+
+    console.log('\n3. Verifica connessione SMTP:');
+    await transporter.verify();
+    console.log('✅ Connessione SMTP verificata con successo');
+
+    console.log('\n4. Invio email di test:');
+    const info = await transporter.sendMail({
+      from: `"TempTodo Test" <${process.env.EMAIL_USER}>`,
+      to: process.env.EMAIL_USER,
+      subject: "Test Configurazione TempTodo",
+      text: "Se ricevi questa email, la configurazione è corretta!",
+      html: `
+        <div style="padding: 20px; background: #f8f9fa; border-radius: 5px;">
+          <h2>🎉 Test Configurazione TempTodo</h2>
+          <p>Se ricevi questa email, la configurazione è corretta!</p>
+          <hr>
+          <p><strong>Dettagli tecnici:</strong></p>
+          <ul>
+            <li>Data: ${new Date().toISOString()}</li>
+            <li>Email: ${process.env.EMAIL_USER}</li>
+            <li>Ambiente: ${process.env.NODE_ENV}</li>
+          </ul>
+        </div>
+      `
+    });
+
+    console.log('✅ Email di test inviata con successo');
+    console.log('- Message ID:', info.messageId);
+    console.log('- Response:', info.response);
+
+    return true;
+  } catch (error) {
+    console.error('\n❌ Errore test configurazione email:', error);
+    console.error('Stack trace:', error.stack);
+    if (error.code === 'EAUTH') {
+      console.error('\n⚠️ Problemi comuni:');
+      console.error('1. Password app non valida');
+      console.error('2. Verifica in due passaggi non attiva');
+      console.error('3. Account Google non configurato correttamente');
+    }
+    return false;
+  }
+};
+
 // Avvia il job di notifica
 const startNotificationService = async () => {
+
   console.log('🚀 Avvio servizio notifiche...');
+  
+  // Esegui test configurazione
+  const isConfigValid = await testEmailConfiguration();
+  if (!isConfigValid) {
+    console.error('❌ Configurazione email non valida. Il servizio notifiche non sarà avviato.');
+    return;
+  }
   
   // Verifica configurazione email
   const isEmailConfigured = await verifyTransporter();
@@ -141,5 +214,6 @@ const startNotificationService = async () => {
 
 module.exports = {
   startNotificationService,
-  sendEmail
+  sendEmail,
+  testEmailConfiguration  
 };

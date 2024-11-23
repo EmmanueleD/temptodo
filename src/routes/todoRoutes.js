@@ -72,6 +72,29 @@ router.post('/test-notification', auth, async (req, res) => {
   }
 });
 
+router.post('/test-email-config', auth, async (req, res) => {
+  try {
+    console.log('📧 Avvio test configurazione email...');
+    const result = await testEmailConfiguration();
+    
+    if (result) {
+      res.json({
+        status: 'success',
+        message: 'Configurazione email verificata con successo'
+      });
+    } else {
+      throw new Error('Test configurazione fallito');
+    }
+  } catch (error) {
+    console.error('Test configurazione fallito:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Test configurazione fallito',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // Aggiorna todo
 router.patch('/:id', auth, async (req, res) => {
   try {
