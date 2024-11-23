@@ -3,22 +3,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 
-// Debug delle variabili d'ambiente all'avvio
-console.log('🔍 Verifica variabili d\'ambiente:');
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('MONGODB_URI presente:', !!process.env.MONGODB_URI);
-console.log('JWT_SECRET presente:', !!process.env.JWT_SECRET);
-console.log('EMAIL_USER presente:', !!process.env.EMAIL_USER);
-console.log('EMAIL_PASSWORD presente:', !!process.env.EMAIL_PASSWORD);
-
-// Verifica formato MONGODB_URI
-if (process.env.MONGODB_URI) {
-  console.log('MONGODB_URI format check:');
-  console.log('- Starts with mongodb+srv://', process.env.MONGODB_URI.startsWith('mongodb+srv://'));
-  console.log('- Contains @', process.env.MONGODB_URI.includes('@'));
-  console.log('- Contains mongodb.net', process.env.MONGODB_URI.includes('mongodb.net'));
-}
-
 // Importa le rotte
 const authRoutes = require('./src/routes/authRoutes');
 const todoRoutes = require('./src/routes/todoRoutes');
@@ -30,6 +14,20 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Flag per lo stato della connessione
+let isDbConnected = false;
+
+// Middleware per verificare la connessione al DB
+const checkDbConnection = (req, res, next) => {
+  if (!isDbConnected) {
+    return res.status(503).json({
+      status: 'error',
+      message: 'Database non disponibile, riprova tra qualche secondo'
+    });
+  }
+  next();
+};
+
 // Middleware di logging
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -40,7 +38,7 @@ app.use((req, res, next) => {
 app.get('/', (req, res) => {
   res.json({ 
     app: 'TempTodo API',
-    status: 'healthy',
+    status: isDbConnected ? 'fully_operational' : 'database_connecting',
     version: '1.0.0',
     environment: process.env.NODE_ENV,
     timestamp: new Date().toISOString(),
@@ -52,9 +50,9 @@ app.get('/', (req, res) => {
   });
 });
 
-// Usa le rotte
-app.use('/api/auth', authRoutes);
-app.use('/api/todos', todoRoutes);
+// Usa le rotte con check della connessione
+app.use('/api/auth', checkDbConnection, authRoutes);
+app.use('/api/todos', checkDbConnection, todoRoutes);
 
 // Gestione errori
 app.use((err, req, res, next) => {
@@ -83,41 +81,64 @@ const connectDB = async () => {
       socketTimeoutMS: 45000,
       family: 4,
       maxPoolSize: 10,
-      minPoolSize: 1
+      minPoolSize: 1,
+      bufferCommands: true  // Cambiato a true
     });
 
+    isDbConnected = true;
     console.log('📦 Connesso con successo a MongoDB');
     return true;
   } catch (error) {
     console.error('❌ Errore connessione MongoDB:', error.message);
+    isDbConnected = false;
     return false;
   }
 };
 
-// Avvio server con retry
-const startServer = async (retryCount = 0) => {
-  try {
-    const isConnected = await connectDB();
-    if (!isConnected && retryCount < 5) {
-      console.log(`Tentativo ${retryCount + 1} di 5 - Riprovo tra 5 secondi...`);
-      setTimeout(() => startServer(retryCount + 1), 5000);
-      return;
-    }
+// Gestione riconnessione MongoDB
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB disconnesso!');
+  isDbConnected = false;
+});
 
-    app.listen(PORT, () => {
-      console.log(`🚀 Server TempTodo attivo sulla porta ${PORT}`);
-      console.log(`📝 Ambiente: ${process.env.NODE_ENV}`);
-    });
-  } catch (error) {
-    console.error('Errore durante l\'avvio del server:', error);
-    if (retryCount < 5) {
-      console.log(`Tentativo ${retryCount + 1} di 5 - Riprovo tra 5 secondi...`);
-      setTimeout(() => startServer(retryCount + 1), 5000);
+mongoose.connection.on('connected', () => {
+  console.log('MongoDB riconnesso!');
+  isDbConnected = true;
+});
+
+// Avvio server
+const startServer = async () => {
+  // Avvia comunque il server HTTP
+  app.listen(PORT, () => {
+    console.log(`🚀 Server TempTodo attivo sulla porta ${PORT}`);
+    console.log(`📝 Ambiente: ${process.env.NODE_ENV}`);
+  });
+
+  // Tenta la connessione al database con retry
+  let retryCount = 0;
+  const maxRetries = 5;
+  
+  const tryConnect = async () => {
+    if (retryCount < maxRetries) {
+      const connected = await connectDB();
+      if (!connected) {
+        retryCount++;
+        console.log(`Tentativo ${retryCount} di ${maxRetries} - Riprovo tra 5 secondi...`);
+        setTimeout(tryConnect, 5000);
+      }
     } else {
-      console.error('Impossibile avviare il server dopo 5 tentativi');
-      process.exit(1);
+      console.error('Impossibile connettersi al database dopo 5 tentativi');
     }
-  }
+  };
+
+  tryConnect();
 };
 
 startServer();
+
+// Gestione graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM ricevuto. Chiusura applicazione...');
+  await mongoose.connection.close();
+  process.exit(0);
+});
