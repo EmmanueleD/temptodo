@@ -79,7 +79,19 @@ const connectDB = async () => {
     }
 
     console.log('🔌 Tentativo di connessione a MongoDB...');
-    await mongoose.connect(process.env.MONGODB_URI);
+    
+    // Opzioni di connessione aggiornate
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 15000, // Timeout aumentato a 15 secondi
+      socketTimeoutMS: 45000,          // Timeout socket aumentato a 45 secondi
+      // Altre opzioni per rendere la connessione più resiliente
+      family: 4,                       // Forza IPv4
+      maxPoolSize: 10,                 // Limita il numero di connessioni
+      minPoolSize: 1,                  // Mantieni almeno una connessione
+      retryWrites: true,              // Riprova le operazioni di scrittura
+      waitQueueTimeoutMS: 20000       // Timeout per la coda di attesa
+    });
+
     console.log('📦 Connesso con successo a MongoDB');
     return true;
   } catch (error) {
