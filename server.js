@@ -1,15 +1,27 @@
-// Importa i moduli necessari all'inizio del file
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose'); // Importazione corretta di mongoose
+const mongoose = require('mongoose');
 const cors = require('cors');
+
+// Debug delle variabili d'ambiente all'avvio
+console.log('🔍 Verifica variabili d\'ambiente:');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('MONGODB_URI presente:', !!process.env.MONGODB_URI);
+console.log('JWT_SECRET presente:', !!process.env.JWT_SECRET);
+console.log('EMAIL_USER presente:', !!process.env.EMAIL_USER);
+console.log('EMAIL_PASSWORD presente:', !!process.env.EMAIL_PASSWORD);
+
+// Verifica formato MONGODB_URI
+if (process.env.MONGODB_URI) {
+  console.log('MONGODB_URI format check:');
+  console.log('- Starts with mongodb+srv://', process.env.MONGODB_URI.startsWith('mongodb+srv://'));
+  console.log('- Contains @', process.env.MONGODB_URI.includes('@'));
+  console.log('- Contains mongodb.net', process.env.MONGODB_URI.includes('mongodb.net'));
+}
 
 // Importa le rotte
 const authRoutes = require('./src/routes/authRoutes');
 const todoRoutes = require('./src/routes/todoRoutes');
-
-mongoose.set('debug', process.env.NODE_ENV === 'development');
-
 
 // Inizializza express
 const app = express();
@@ -24,14 +36,19 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check route
+// Health check route con info env
 app.get('/', (req, res) => {
   res.json({ 
     app: 'TempTodo API',
     status: 'healthy',
     version: '1.0.0',
     environment: process.env.NODE_ENV,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    envCheck: {
+      mongodbUri: !!process.env.MONGODB_URI,
+      jwtSecret: !!process.env.JWT_SECRET,
+      emailConfig: !!(process.env.EMAIL_USER && process.env.EMAIL_PASSWORD)
+    }
   });
 });
 
@@ -49,35 +66,18 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Gestione 404
-app.use((req, res) => {
-  res.status(404).json({
-    status: 'error',
-    message: 'Route non trovata',
-    path: req.path
-  });
-});
-
 // Configurazione porta
 const PORT = process.env.PORT || 3000;
 
 // Funzione per gestire la connessione MongoDB
 const connectDB = async () => {
   try {
+    if (!process.env.MONGODB_URI) {
+      throw new Error('⚠️ MONGODB_URI non è definito nelle variabili d\'ambiente');
+    }
+
     console.log('🔌 Tentativo di connessione a MongoDB...');
     
-    mongoose.connection.on('connected', () => {
-      console.log('🎉 Mongoose connesso al DB');
-    });
-
-    mongoose.connection.on('error', (err) => {
-      console.error('❌ Errore connessione Mongoose:', err);
-    });
-
-    mongoose.connection.on('disconnected', () => {
-      console.log('💔 Mongoose disconnesso');
-    });
-
     await mongoose.connect(process.env.MONGODB_URI, {
       serverSelectionTimeoutMS: 20000,
       socketTimeoutMS: 45000,
@@ -86,9 +86,10 @@ const connectDB = async () => {
       minPoolSize: 1
     });
 
+    console.log('📦 Connesso con successo a MongoDB');
     return true;
   } catch (error) {
-    console.error('❌ Errore connessione MongoDB:', error);
+    console.error('❌ Errore connessione MongoDB:', error.message);
     return false;
   }
 };
@@ -118,10 +119,5 @@ const startServer = async (retryCount = 0) => {
     }
   }
 };
-
-// Gestione errori non catturati
-process.on('unhandledRejection', (error) => {
-  console.error('Errore non gestito:', error);
-});
 
 startServer();
