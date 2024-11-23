@@ -10,10 +10,7 @@ router.post('/register', async (req, res) => {
     const { email, password } = req.body;
     
     console.log('🔍 Verifica email esistente:', email);
-    // Imposta timeout esplicito per findOne
-    const existingUser = await User.findOne({ email })
-      .maxTimeMS(20000)
-      .exec();
+    const existingUser = await User.findOne({ email });
     
     if (existingUser) {
       console.log('❌ Email già registrata');
@@ -47,12 +44,100 @@ router.post('/register', async (req, res) => {
     console.error('❌ Errore durante la registrazione:', error);
     res.status(400).json({
       status: 'error',
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message
     });
   }
 });
 
-// Il resto del codice rimane invariato...
+// Login
+router.post('/login', async (req, res) => {
+  try {
+    console.log('🔑 Tentativo di login...');
+    const { email, password } = req.body;
 
-module.exports = router;
+    // Trova l'utente
+    console.log('🔍 Ricerca utente...');
+    const user = await User.findOne({ email });
+    if (!user) {
+      console.log('❌ Utente non trovato');
+      return res.status(401).json({
+        status: 'error',
+        message: 'Credenziali non valide'
+      });
+    }
+
+    // Verifica password
+    console.log('🔐 Verifica password...');
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      console.log('❌ Password non valida');
+      return res.status(401).json({
+        status: 'error',
+        message: 'Credenziali non valide'
+      });
+    }
+
+    // Genera token
+    console.log('🎟️ Generazione nuovo token...');
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    console.log('✅ Login completato con successo');
+    res.json({
+      status: 'success',
+      data: {
+        userId: user._id,
+        email: user.email,
+        token
+      }
+    });
+  } catch (error) {
+    console.error('❌ Errore durante il login:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Errore durante il login'
+    });
+  }
+});
+
+// Verifica token (endpoint opzionale per test)
+router.get('/verify', async (req, res) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Token non fornito'
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.userId);
+    
+    if (!user) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Utente non trovato'
+      });
+    }
+
+    res.json({
+      status: 'success',
+      data: {
+        userId: user._id,
+        email: user.email
+      }
+    });
+  } catch (error) {
+    res.status(401).json({
+      status: 'error',
+      message: 'Token non valido'
+    });
+  }
+});
+
+module.exports = router
