@@ -8,6 +8,9 @@ const cors = require('cors');
 const authRoutes = require('./src/routes/authRoutes');
 const todoRoutes = require('./src/routes/todoRoutes');
 
+mongoose.set('debug', process.env.NODE_ENV === 'development');
+
+
 // Inizializza express
 const app = express();
 
@@ -61,44 +64,31 @@ const PORT = process.env.PORT || 3000;
 // Funzione per gestire la connessione MongoDB
 const connectDB = async () => {
   try {
-    console.log('🔍 Verifica configurazione MongoDB...');
-    
-    // Verifica variabili d'ambiente
-    const envVariables = {
-      MONGODB_URI: process.env.MONGODB_URI ? '✅ Definito' : '❌ Non definito',
-      NODE_ENV: process.env.NODE_ENV || 'non definito',
-      JWT_SECRET: process.env.JWT_SECRET ? '✅ Definito' : '❌ Non definito',
-      EMAIL_USER: process.env.EMAIL_USER ? '✅ Definito' : '❌ Non definito',
-      EMAIL_PASSWORD: process.env.EMAIL_PASSWORD ? '✅ Definito' : '❌ Non definito'
-    };
-    
-    console.log('📊 Stato variabili d\'ambiente:', envVariables);
-    
-    if (!process.env.MONGODB_URI) {
-      throw new Error('MONGODB_URI non è definito nelle variabili d\'ambiente');
-    }
-
     console.log('🔌 Tentativo di connessione a MongoDB...');
     
-    // Opzioni di connessione aggiornate
-    await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 15000, // Timeout aumentato a 15 secondi
-      socketTimeoutMS: 45000,          // Timeout socket aumentato a 45 secondi
-      // Altre opzioni per rendere la connessione più resiliente
-      family: 4,                       // Forza IPv4
-      maxPoolSize: 10,                 // Limita il numero di connessioni
-      minPoolSize: 1,                  // Mantieni almeno una connessione
-      retryWrites: true,              // Riprova le operazioni di scrittura
-      waitQueueTimeoutMS: 20000       // Timeout per la coda di attesa
+    mongoose.connection.on('connected', () => {
+      console.log('🎉 Mongoose connesso al DB');
     });
 
-    console.log('📦 Connesso con successo a MongoDB');
+    mongoose.connection.on('error', (err) => {
+      console.error('❌ Errore connessione Mongoose:', err);
+    });
+
+    mongoose.connection.on('disconnected', () => {
+      console.log('💔 Mongoose disconnesso');
+    });
+
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 20000,
+      socketTimeoutMS: 45000,
+      family: 4,
+      maxPoolSize: 10,
+      minPoolSize: 1
+    });
+
     return true;
   } catch (error) {
-    console.error('❌ Errore connessione MongoDB:', error.message);
-    if (error.message.includes('MONGODB_URI non è definito')) {
-      console.error('💡 Suggerimento: Configura MONGODB_URI nelle variabili d\'ambiente di Railway');
-    }
+    console.error('❌ Errore connessione MongoDB:', error);
     return false;
   }
 };
