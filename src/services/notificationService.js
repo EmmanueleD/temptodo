@@ -14,94 +14,17 @@ const transporter = nodemailer.createTransport({
   logger: true
 });
 
-// Debug delle variabili email
-console.log('📧 Configurazione Email:');
-console.log('- EMAIL_USER configurato:', !!process.env.EMAIL_USER);
-console.log('- EMAIL_PASSWORD configurato:', !!process.env.EMAIL_PASSWORD);
-
-// Funzione di test della configurazione email
-const testEmailConfiguration = async () => {
-  try {
-    console.log('\n🔍 Test Configurazione Email:');
-    console.log('1. Verifica variabili ambiente:');
-    console.log('- EMAIL_USER:', process.env.EMAIL_USER ? '✅ Configurato' : '❌ Mancante');
-    console.log('- EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD ? '✅ Configurato' : '❌ Mancante');
-    
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-      throw new Error('Variabili email mancanti');
-    }
-
-    console.log('\n2. Configurazione Nodemailer:');
-    console.log('Verifica configurazione del trasportatore...');
-
-    console.log('\n3. Verifica connessione SMTP:');
-    await transporter.verify();
-    console.log('✅ Connessione SMTP verificata con successo');
-
-    console.log('\n4. Invio email di test:');
-    const info = await transporter.sendMail({
-      from: `"TempTodo Test" <${process.env.EMAIL_USER}>`,
-      to: process.env.EMAIL_USER,
-      subject: "Test Configurazione TempTodo",
-      text: "Se ricevi questa email, la configurazione è corretta!",
-      html: `
-        <div style="padding: 20px; background: #f8f9fa; border-radius: 5px;">
-          <h2>🎉 Test Configurazione TempTodo</h2>
-          <p>Se ricevi questa email, la configurazione è corretta!</p>
-          <hr>
-          <p><strong>Dettagli tecnici:</strong></p>
-          <ul>
-            <li>Data: ${new Date().toISOString()}</li>
-            <li>Email: ${process.env.EMAIL_USER}</li>
-            <li>Ambiente: ${process.env.NODE_ENV}</li>
-          </ul>
-        </div>
-      `
-    });
-
-    console.log('✅ Email di test inviata con successo');
-    console.log('- Message ID:', info.messageId);
-    console.log('- Response:', info.response);
-
-    return true;
-  } catch (error) {
-    console.error('\n❌ Errore test configurazione email:', error);
-    console.error('Stack trace:', error.stack);
-    return false;
-  }
-};
-
-// Funzione per inviare email
-const sendEmail = async (to, subject, text) => {
-  try {
-    const info = await transporter.sendMail({
-      from: `"TempTodo" <${process.env.EMAIL_USER}>`,
-      to,
-      subject,
-      text,
-      html: `
-        <div style="padding: 20px; background: #f8f9fa; border-radius: 5px;">
-          <h2>⏰ ${subject}</h2>
-          <p>${text}</p>
-        </div>
-      `
-    });
-    console.log('📧 Email inviata:', info.messageId);
-    return true;
-  } catch (error) {
-    console.error('❌ Errore invio email:', error);
-    return false;
-  }
-};
-
-// Funzione per controllare e inviare notifiche
+// Funzione per controllare e inviare notifiche con più logging
 const checkAndSendNotifications = async () => {
   try {
-    console.log('\n🔍 Controllo notifiche:', new Date().toISOString());
-    
     const now = new Date();
     const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60000);
     
+    console.log('\n🔍 Controllo Notifiche:');
+    console.log('- Ora corrente:', now.toISOString());
+    console.log('- Cerco notifiche fino a:', fiveMinutesFromNow.toISOString());
+
+    // Trova todos da notificare
     const todosToNotify = await Todo.find({
       notifyAt: {
         $gte: now,
@@ -110,47 +33,96 @@ const checkAndSendNotifications = async () => {
       notified: { $ne: true }
     }).populate('user');
 
-    console.log('Trovati todos da notificare:', todosToNotify.length);
+    console.log('📊 Stato ricerca:');
+    console.log('- Todos trovati:', todosToNotify.length);
 
+    // Log dettagliato di ogni todo trovato
+    if (todosToNotify.length > 0) {
+      console.log('\n📝 Dettaglio todos da notificare:');
+      todosToNotify.forEach(todo => {
+        console.log(`\nTodo ID: ${todo._id}`);
+        console.log(`- Titolo: ${todo.title}`);
+        console.log(`- Notifica programmata per: ${todo.notifyAt}`);
+        console.log(`- Email utente: ${todo.user.email}`);
+      });
+    } else {
+      console.log('ℹ️ Nessun todo da notificare in questo momento');
+    }
+
+    // Invia notifiche
     for (const todo of todosToNotify) {
-      console.log('\n📝 Processo todo:', todo._id);
-      const emailSent = await sendEmail(
-        todo.user.email,
-        'Promemoria TempTodo',
-        todo.title
-      );
+      console.log(`\n📨 Invio notifica per todo: ${todo._id}`);
+      
+      try {
+        const info = await transporter.sendMail({
+          from: `"TempTodo Reminder" <${process.env.EMAIL_USER}>`,
+          to: todo.user.email,
+          subject: "🔔 Promemoria TempTodo",
+          html: `
+            <div style="font-family: Arial, sans-serif; padding: 20px; background: #f8f9fa; border-radius: 5px;">
+              <h2>⏰ Promemoria Todo</h2>
+              <p>Ciao! Un tuo todo sta per scadere:</p>
+              <div style="background: #fff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <h3 style="margin: 0; color: #2c3e50;">${todo.title}</h3>
+                <p style="color: #666; margin: 10px 0 0 0;">
+                  Questo todo verrà eliminato automaticamente tra poco.
+                </p>
+              </div>
+              <hr style="border: 1px solid #eee; margin: 20px 0;">
+              <p style="color: #666; font-size: 12px;">
+                TempTodo - I tuoi promemoria temporanei
+              </p>
+            </div>
+          `
+        });
 
-      if (emailSent) {
+        console.log('✅ Email inviata con successo');
+        console.log('- Message ID:', info.messageId);
+        
+        // Aggiorna lo stato del todo
         todo.notified = true;
         await todo.save();
-        console.log('✅ Notifica inviata e todo aggiornato');
+        console.log('✅ Todo marcato come notificato');
+      } catch (error) {
+        console.error('❌ Errore invio email:', error);
       }
     }
+
   } catch (error) {
     console.error('❌ Errore durante il controllo notifiche:', error);
+    console.error('Stack:', error.stack);
   }
 };
 
-// Funzione per avviare il servizio notifiche
+// Avvia il servizio notifiche con più logging
 const startNotificationService = async () => {
-  console.log('🚀 Avvio servizio notifiche...');
+  console.log('\n🚀 Avvio servizio notifiche');
   
   try {
-    await testEmailConfiguration();
-    console.log('⏰ Configurazione job di notifica...');
-    cron.schedule('* * * * *', checkAndSendNotifications);
+    // Verifica iniziale trasportatore
+    console.log('🔍 Verifica configurazione email...');
+    await transporter.verify();
+    console.log('✅ Configurazione email verificata');
+
+    // Schedula il job
+    console.log('⏰ Configurazione job di notifica (ogni minuto)...');
+    cron.schedule('* * * * *', () => {
+      console.log('\n⏰ Esecuzione job notifiche:', new Date().toISOString());
+      checkAndSendNotifications();
+    });
+
     console.log('✅ Servizio notifiche avviato con successo');
     
-    // Esegui un primo controllo immediato
+    // Esegui primo controllo
+    console.log('\n🔄 Esecuzione controllo iniziale...');
     await checkAndSendNotifications();
   } catch (error) {
     console.error('❌ Errore avvio servizio notifiche:', error);
+    console.error('Stack:', error.stack);
   }
 };
 
-// Esporta tutte le funzioni necessarie
 module.exports = {
   startNotificationService,
-  sendEmail,
-  testEmailConfiguration
+  checkAndSendNotifications
 };
