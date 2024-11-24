@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const { startNotificationService } = require('./src/services/notificationService'); // Aggiungi questa riga
 
 // Importa le rotte
 const authRoutes = require('./src/routes/authRoutes');
@@ -82,7 +83,7 @@ const connectDB = async () => {
       family: 4,
       maxPoolSize: 10,
       minPoolSize: 1,
-      bufferCommands: true  // Cambiato a true
+      bufferCommands: true
     });
 
     isDbConnected = true;
@@ -125,6 +126,15 @@ const startServer = async () => {
         retryCount++;
         console.log(`Tentativo ${retryCount} di ${maxRetries} - Riprovo tra 5 secondi...`);
         setTimeout(tryConnect, 5000);
+      } else {
+        // Avvia il servizio di notifiche solo dopo una connessione riuscita
+        console.log('🔔 Avvio servizio notifiche...');
+        try {
+          await startNotificationService();
+          console.log('✅ Servizio notifiche avviato con successo');
+        } catch (error) {
+          console.error('❌ Errore avvio servizio notifiche:', error);
+        }
       }
     } else {
       console.error('Impossibile connettersi al database dopo 5 tentativi');
